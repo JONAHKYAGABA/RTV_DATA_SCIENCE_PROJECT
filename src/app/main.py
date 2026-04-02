@@ -67,9 +67,12 @@ app = FastAPI(
 )
 
 # ── Middleware ──
+# "null" origin is sent by browsers when index.html is opened directly from
+# the filesystem (file:// protocol).  Without it, fetch() calls from a local
+# HTML file are blocked by the browser's same-origin policy.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*", "null"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

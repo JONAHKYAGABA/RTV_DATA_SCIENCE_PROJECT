@@ -194,8 +194,11 @@ The API is structured as a proper Python package (`src/app/`) with separated con
 ### Step 5 — Run the API Locally
 
 ```bash
-# Set the model path
+# Set the model path (Linux/Mac)
 export MODEL_PATH=outputs/training/<run_name>/weights/best.pt
+
+# Set the model path (Windows PowerShell)
+$env:MODEL_PATH = "outputs/training/<run_name>/weights/best.pt"
 
 # Start the server
 uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -205,6 +208,19 @@ Then open your browser:
 - **http://localhost:8000** — Interactive test page (drag & drop images)
 - **http://localhost:8000/docs** — Swagger API documentation
 - **http://localhost:8000/redoc** — ReDoc API documentation
+
+### Step 6 — Test with the HTML Page
+
+You can test the API in **two ways**:
+
+**Option A — Served by FastAPI (recommended):**
+Open `http://localhost:8000` in your browser. The test page is served directly by the API, so everything works automatically.
+
+**Option B — Open the HTML file directly from disk:**
+Double-click `src/app/templates/index.html` to open it in your browser.
+The page will detect it's running from a `file://` URL and default to `http://localhost:8000` as the API address. You can change the API URL in the input field at the top of the page if the server is on a different host/port.
+
+> **Note:** CORS is configured to accept requests from `null` origins (which is what browsers send for `file://` pages), so this works out of the box.
 
 ### API Endpoints
 

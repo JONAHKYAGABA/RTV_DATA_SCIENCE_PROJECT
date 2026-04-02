@@ -29,6 +29,34 @@
             padding: 0 1.5rem;
         }
 
+        /* ── API URL Bar ── */
+        .api-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+        }
+        .api-bar label { color: #555; font-weight: 600; white-space: nowrap; }
+        .api-bar input {
+            flex: 1;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+        .api-bar button {
+            padding: 0.4rem 0.8rem;
+            background: #2d8a4e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .api-bar button:hover { background: #1a5632; }
+
         /* ── Status Banner ── */
         .status-bar {
             display: flex;
@@ -60,6 +88,7 @@
             transition: border-color 0.2s, background 0.2s;
             background: white;
             margin-bottom: 1.5rem;
+            position: relative;
         }
         .upload-area:hover, .upload-area.drag-over {
             border-color: #2d8a4e;
@@ -78,28 +107,17 @@
             cursor: pointer;
             transition: background 0.2s;
             margin-top: 1rem;
+            position: relative;
+            z-index: 2;
         }
-        .btn-primary {
-            background: #2d8a4e;
-            color: white;
-        }
+        .btn-primary { background: #2d8a4e; color: white; }
         .btn-primary:hover { background: #1a5632; }
-        .btn-primary:disabled {
-            background: #aaa;
-            cursor: not-allowed;
-        }
+        .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
 
         /* ── Preview ── */
-        .preview-section {
-            display: none;
-            margin-bottom: 1.5rem;
-        }
+        .preview-section { display: none; margin-bottom: 1.5rem; }
         .preview-section.visible { display: block; }
-        .preview-grid {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
+        .preview-grid { display: flex; gap: 1rem; flex-wrap: wrap; }
         .preview-card {
             background: white;
             border-radius: 8px;
@@ -108,11 +126,7 @@
             width: 140px;
             text-align: center;
         }
-        .preview-card img {
-            width: 140px;
-            height: 105px;
-            object-fit: cover;
-        }
+        .preview-card img { width: 140px; height: 105px; object-fit: cover; }
         .preview-card .name {
             padding: 0.4rem;
             font-size: 0.75rem;
@@ -123,10 +137,7 @@
         }
 
         /* ── Results ── */
-        .results-section {
-            display: none;
-            margin-top: 1.5rem;
-        }
+        .results-section { display: none; margin-top: 1.5rem; }
         .results-section.visible { display: block; }
 
         .result-card {
@@ -136,16 +147,8 @@
             padding: 1.5rem;
             margin-bottom: 1rem;
         }
-        .result-card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.3rem;
-            color: #1a5632;
-        }
-        .result-card .meta {
-            font-size: 0.85rem;
-            color: #777;
-            margin-bottom: 1rem;
-        }
+        .result-card h3 { font-size: 1.1rem; margin-bottom: 0.3rem; color: #1a5632; }
+        .result-card .meta { font-size: 0.85rem; color: #777; margin-bottom: 1rem; }
 
         .bar-chart { margin-top: 0.5rem; }
         .bar-row {
@@ -192,11 +195,7 @@
         }
 
         /* ── Loading ── */
-        .spinner {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
+        .spinner { display: none; text-align: center; padding: 2rem; }
         .spinner.visible { display: block; }
         .spinner .dot {
             display: inline-block;
@@ -240,6 +239,7 @@
             font-size: 0.8rem;
             color: #999;
         }
+        .footer a { color: #2d8a4e; }
     </style>
 </head>
 <body>
@@ -251,6 +251,13 @@
 
 <div class="container">
 
+    <!-- API URL Configuration -->
+    <div class="api-bar">
+        <label for="apiUrl">API URL:</label>
+        <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+        <button id="reconnectBtn" type="button">Connect</button>
+    </div>
+
     <!-- Status -->
     <div id="statusBar" class="status-bar warn">
         <span class="status-dot"></span>
@@ -261,8 +268,11 @@
     <div class="upload-area" id="dropZone">
         <h2>Drag &amp; drop images here</h2>
         <p>or click to browse &mdash; supports JPG, PNG, WEBP</p>
-        <input type="file" id="fileInput" accept="image/*" multiple>
-        <br>
+        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp,.bmp" multiple>
+    </div>
+
+    <!-- Classify button (outside dropZone to prevent click bubbling) -->
+    <div style="text-align:center; margin-bottom:1.5rem;">
         <button class="btn btn-primary" id="classifyBtn" disabled>Classify</button>
     </div>
 
@@ -290,70 +300,137 @@
 
 <div class="footer">
     RTV Check-in Image Classifier &middot; Powered by YOLO11 &middot;
-    <a href="/docs" style="color:#2d8a4e;">API Docs</a>
+    <a href="#" id="docsLink">API Docs (Swagger)</a>
 </div>
 
 <script>
-const API = window.location.origin;
+// ── Determine API base URL ──
+// When served by FastAPI, window.location.origin is the API itself.
+// When opened from filesystem (file://), origin is "null" — fall back to localhost.
+function getDefaultApiUrl() {
+    const origin = window.location.origin;
+    // file:// protocol gives "null" or "file://" — neither is a valid API URL
+    if (!origin || origin === 'null' || origin.startsWith('file:')) {
+        return 'http://localhost:8000';
+    }
+    return origin;
+}
+
+let API_BASE = getDefaultApiUrl();
 let selectedFiles = [];
+let previewObjectUrls = [];  // track for cleanup
 
 // ── Elements ──
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const classifyBtn = document.getElementById('classifyBtn');
+const apiUrlInput   = document.getElementById('apiUrl');
+const reconnectBtn  = document.getElementById('reconnectBtn');
+const dropZone      = document.getElementById('dropZone');
+const fileInput     = document.getElementById('fileInput');
+const classifyBtn   = document.getElementById('classifyBtn');
 const previewSection = document.getElementById('previewSection');
-const previewGrid = document.getElementById('previewGrid');
-const spinner = document.getElementById('spinner');
+const previewGrid   = document.getElementById('previewGrid');
+const spinner       = document.getElementById('spinner');
 const resultsSection = document.getElementById('resultsSection');
-const statusBar = document.getElementById('statusBar');
-const statusText = document.getElementById('statusText');
-const catGrid = document.getElementById('catGrid');
+const statusBar     = document.getElementById('statusBar');
+const statusText    = document.getElementById('statusText');
+const catGrid       = document.getElementById('catGrid');
+const docsLink      = document.getElementById('docsLink');
 
-// ── Check API health on load ──
+// Set the input to the detected URL
+apiUrlInput.value = API_BASE;
+
+// ── API URL management ──
+function updateApiBase() {
+    let url = apiUrlInput.value.trim();
+    // Strip trailing slash
+    if (url.endsWith('/')) url = url.slice(0, -1);
+    API_BASE = url;
+    apiUrlInput.value = url;
+    docsLink.href = API_BASE + '/docs';
+    checkHealth();
+    loadCategories();
+}
+
+reconnectBtn.addEventListener('click', updateApiBase);
+apiUrlInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') updateApiBase();
+});
+
+// ── Health check ──
 async function checkHealth() {
+    statusBar.className = 'status-bar warn';
+    statusText.textContent = 'Connecting to ' + API_BASE + ' \u2026';
+
     try {
-        const res = await fetch(`${API}/health`);
+        const res = await fetch(API_BASE + '/health', { mode: 'cors' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
+
         if (data.model_loaded) {
             statusBar.className = 'status-bar ok';
-            statusText.textContent = `Model loaded and ready (${data.model_path})`;
+            statusText.textContent = 'Connected \u2014 model loaded and ready';
         } else {
             statusBar.className = 'status-bar warn';
-            statusText.textContent = 'API running but model not loaded — predictions will fail';
+            statusText.textContent = 'Connected \u2014 but model not loaded (predictions will fail)';
         }
-    } catch {
+    } catch (err) {
         statusBar.className = 'status-bar err';
-        statusText.textContent = 'Cannot reach API — is the server running?';
+        statusText.textContent = 'Cannot reach API at ' + API_BASE + ' \u2014 ' + err.message;
     }
 }
 
 // ── Load categories ──
 async function loadCategories() {
     try {
-        const res = await fetch(`${API}/categories`);
+        const res = await fetch(API_BASE + '/categories', { mode: 'cors' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const cats = await res.json();
-        catGrid.innerHTML = cats.map(c =>
-            `<div class="cat-chip"><strong>${c.label}</strong><p>${c.description}</p></div>`
-        ).join('');
-    } catch {
-        catGrid.innerHTML = '<p style="color:#999;">Could not load categories</p>';
+        catGrid.innerHTML = cats.map(function(c) {
+            return '<div class="cat-chip"><strong>' + escapeHtml(c.label) +
+                   '</strong><p>' + escapeHtml(c.description) + '</p></div>';
+        }).join('');
+    } catch (_) {
+        catGrid.innerHTML = '<p style="color:#999;">Could not load categories from API</p>';
     }
 }
 
 // ── Drag & Drop ──
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
+dropZone.addEventListener('click', function() { fileInput.click(); });
+
+dropZone.addEventListener('dragover', function(e) {
     e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
     dropZone.classList.remove('drag-over');
     handleFiles(e.dataTransfer.files);
 });
-fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+fileInput.addEventListener('change', function() {
+    handleFiles(fileInput.files);
+});
 
 function handleFiles(fileList) {
-    selectedFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
-    if (!selectedFiles.length) return;
+    // Clean up previous preview URLs
+    previewObjectUrls.forEach(function(url) { URL.revokeObjectURL(url); });
+    previewObjectUrls = [];
+
+    selectedFiles = [];
+    for (var i = 0; i < fileList.length; i++) {
+        if (fileList[i].type.startsWith('image/')) {
+            selectedFiles.push(fileList[i]);
+        }
+    }
+    if (selectedFiles.length === 0) return;
 
     classifyBtn.disabled = false;
     previewGrid.innerHTML = '';
@@ -361,23 +438,30 @@ function handleFiles(fileList) {
     resultsSection.classList.remove('visible');
     resultsSection.innerHTML = '';
 
-    selectedFiles.forEach(file => {
-        const card = document.createElement('div');
+    selectedFiles.forEach(function(file) {
+        var card = document.createElement('div');
         card.className = 'preview-card';
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        const name = document.createElement('div');
-        name.className = 'name';
-        name.textContent = file.name;
+
+        var img = document.createElement('img');
+        var objUrl = URL.createObjectURL(file);
+        previewObjectUrls.push(objUrl);
+        img.src = objUrl;
+        img.alt = file.name;
+
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'name';
+        nameDiv.textContent = file.name;
+
         card.appendChild(img);
-        card.appendChild(name);
+        card.appendChild(nameDiv);
         previewGrid.appendChild(card);
     });
 }
 
 // ── Classify ──
-classifyBtn.addEventListener('click', async () => {
-    if (!selectedFiles.length) return;
+classifyBtn.addEventListener('click', async function() {
+    if (selectedFiles.length === 0) return;
+
     classifyBtn.disabled = true;
     spinner.classList.add('visible');
     resultsSection.classList.remove('visible');
@@ -390,8 +474,12 @@ classifyBtn.addEventListener('click', async () => {
             await classifyBatch(selectedFiles);
         }
     } catch (err) {
-        resultsSection.innerHTML = `<div class="result-card" style="color:#721c24;">
-            <h3>Error</h3><p>${err.message}</p></div>`;
+        resultsSection.innerHTML =
+            '<div class="result-card" style="color:#721c24;">' +
+            '<h3>Error</h3><p>' + escapeHtml(err.message) + '</p>' +
+            '<p style="margin-top:0.5rem;font-size:0.85rem;color:#888;">' +
+            'Make sure the API is running at <strong>' + escapeHtml(API_BASE) + '</strong> ' +
+            'and the model is loaded.</p></div>';
         resultsSection.classList.add('visible');
     } finally {
         spinner.classList.remove('visible');
@@ -400,53 +488,80 @@ classifyBtn.addEventListener('click', async () => {
 });
 
 async function classifySingle(file) {
-    const form = new FormData();
+    var form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${API}/predict`, { method: 'POST', body: form });
+
+    var res = await fetch(API_BASE + '/predict', {
+        method: 'POST',
+        body: form,
+        mode: 'cors',
+    });
+
     if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || res.statusText);
+        var errBody;
+        try { errBody = await res.json(); } catch (_) { errBody = {}; }
+        throw new Error(errBody.detail || 'Server returned HTTP ' + res.status);
     }
-    const data = await res.json();
+
+    var data = await res.json();
     renderSingleResult(data, file.name);
 }
 
 async function classifyBatch(files) {
-    const form = new FormData();
-    files.forEach(f => form.append('files', f));
-    const res = await fetch(`${API}/predict/batch`, { method: 'POST', body: form });
-    if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || res.statusText);
+    var form = new FormData();
+    for (var i = 0; i < files.length; i++) {
+        form.append('files', files[i]);
     }
-    const data = await res.json();
+
+    var res = await fetch(API_BASE + '/predict/batch', {
+        method: 'POST',
+        body: form,
+        mode: 'cors',
+    });
+
+    if (!res.ok) {
+        var errBody;
+        try { errBody = await res.json(); } catch (_) { errBody = {}; }
+        throw new Error(errBody.detail || 'Server returned HTTP ' + res.status);
+    }
+
+    var data = await res.json();
     renderBatchResults(data);
 }
 
 // ── Render Results ──
+function titleCase(str) {
+    return str.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+
 function renderSingleResult(data, filename) {
-    const html = `
-        <div class="result-card">
-            <h3>${data.predicted_class.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h3>
-            <div class="meta">${data.description} &middot; <strong>${(data.confidence * 100).toFixed(1)}%</strong> confidence</div>
-            <div class="bar-chart">${renderBars(data.top5)}</div>
-            <div class="timing">Inference: ${data.inference_time_ms} ms &middot; File: ${filename}</div>
-        </div>`;
+    var html =
+        '<div class="result-card">' +
+        '<h3>' + escapeHtml(titleCase(data.predicted_class)) + '</h3>' +
+        '<div class="meta">' + escapeHtml(data.description) +
+        ' &middot; <strong>' + (data.confidence * 100).toFixed(1) + '%</strong> confidence</div>' +
+        '<div class="bar-chart">' + renderBars(data.top5) + '</div>' +
+        '<div class="timing">Inference: ' + data.inference_time_ms + ' ms &middot; File: ' +
+        escapeHtml(filename) + '</div></div>';
+
     resultsSection.innerHTML = html;
     resultsSection.classList.add('visible');
 }
 
 function renderBatchResults(data) {
-    let html = `<div class="result-card"><h3>Batch Results</h3>
-        <div class="meta">${data.total} images &middot; ${data.failed} failed &middot; ${data.inference_time_ms} ms total</div></div>`;
+    var html =
+        '<div class="result-card"><h3>Batch Results</h3>' +
+        '<div class="meta">' + data.total + ' images &middot; ' +
+        data.failed + ' failed &middot; ' + data.inference_time_ms + ' ms total</div></div>';
 
-    data.results.forEach(r => {
-        html += `
-            <div class="result-card">
-                <h3>${r.predicted_class.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h3>
-                <div class="meta">${r.filename} &middot; ${r.description} &middot; <strong>${(r.confidence * 100).toFixed(1)}%</strong></div>
-                <div class="bar-chart">${renderBars(r.top5)}</div>
-            </div>`;
+    data.results.forEach(function(r) {
+        html +=
+            '<div class="result-card">' +
+            '<h3>' + escapeHtml(titleCase(r.predicted_class)) + '</h3>' +
+            '<div class="meta">' + escapeHtml(r.filename) + ' &middot; ' +
+            escapeHtml(r.description) + ' &middot; <strong>' +
+            (r.confidence * 100).toFixed(1) + '%</strong></div>' +
+            '<div class="bar-chart">' + renderBars(r.top5) + '</div></div>';
     });
 
     resultsSection.innerHTML = html;
@@ -454,18 +569,25 @@ function renderBatchResults(data) {
 }
 
 function renderBars(top5) {
-    return top5.map((item, i) => {
-        const pct = (item.confidence * 100).toFixed(1);
-        const cls = i === 0 ? 'bar-fill top' : 'bar-fill';
-        return `<div class="bar-row">
-            <span class="bar-label">${item.label}</span>
-            <div class="bar-track"><div class="${cls}" style="width:${pct}%"></div></div>
-            <span class="bar-value">${pct}%</span>
-        </div>`;
+    return top5.map(function(item, i) {
+        var pct = (item.confidence * 100).toFixed(1);
+        var cls = i === 0 ? 'bar-fill top' : 'bar-fill';
+        return '<div class="bar-row">' +
+            '<span class="bar-label">' + escapeHtml(item.label) + '</span>' +
+            '<div class="bar-track"><div class="' + cls + '" style="width:' + pct + '%"></div></div>' +
+            '<span class="bar-value">' + pct + '%</span></div>';
     }).join('');
 }
 
+// ── XSS protection ──
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
 // ── Init ──
+docsLink.href = API_BASE + '/docs';
 checkHealth();
 loadCategories();
 </script>
