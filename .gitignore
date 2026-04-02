@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# Data (download separately — not tracked in git)
+data/
+
+# Outputs (generated at runtime)
+outputs/
+
+# Model weights (too large for git)
+*.pt
+*.pth
+*.onnx
+
+# Environment
+.env

@@ -1,0 +1,21 @@
+# docker-compose.yml — Local development and deployment
+# Usage: docker compose up --build
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=outputs/training/best.pt
+      - IMAGE_SIZE=640
+      - MAX_BATCH_SIZE=16
+    volumes:
+      # Mount model weights from host — avoids baking large files into image
+      - ./outputs/training:/app/outputs/training:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

@@ -1,0 +1,24 @@
+# Git
+.git/
+.gitignore
+
+# Data (too large; mount at runtime)
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+__MACOSX/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Docs (not needed in container)
+docs/
+README.md
