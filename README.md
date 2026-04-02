@@ -9,20 +9,29 @@ An end-to-end machine learning solution that classifies Raising The Village (RTV
 ## Project Structure
 
 ```
-├── data/                        # Raw dataset (9 category folders)
+├── data/                           # Raw dataset (download separately)
 ├── src/
-│   ├── task1_data_analysis.py   # EDA: statistics, plots, quality audit
-│   ├── task1_data_pipeline.py   # Data splitting, augmentation, YOLO structure
-│   ├── task2_model_training.py  # YOLO11 fine-tuning (single + two-phase)
-│   ├── task2_model_evaluation.py# Metrics, confusion matrix, error analysis
-│   └── task3_api.py             # FastAPI REST API for inference
+│   ├── task1_data_analysis.py      # Task 1 — EDA: statistics, plots, quality audit
+│   ├── task1_data_pipeline.py      # Task 1 — Data splitting, augmentation, YOLO structure
+│   ├── task2_model_training.py     # Task 2 — YOLO11 fine-tuning (single + two-phase)
+│   ├── task2_model_evaluation.py   # Task 2 — Metrics, confusion matrix, error analysis
+│   └── app/                        # Task 3 — FastAPI application
+│       ├── main.py                 #   App factory, lifespan, routes
+│       ├── config.py               #   Settings and category metadata
+│       ├── schemas.py              #   Pydantic request/response models
+│       ├── classifier.py           #   Model loading and inference logic
+│       ├── routers/
+│       │   ├── health.py           #   /health, /ready, /categories
+│       │   └── predict.py          #   /predict, /predict/batch
+│       └── templates/
+│           └── index.html          #   Interactive test page (drag & drop)
 ├── docs/
-│   └── task1_analysis_writeup.md# Analysis observations and design decisions
-├── outputs/                     # Generated at runtime
-│   ├── analysis/                # EDA plots and reports
-│   ├── prepared_data/           # Train/val/test splits
-│   ├── training/                # Model weights and logs
-│   └── evaluation/              # Evaluation metrics and plots
+│   └── task1_analysis_writeup.md   # Analysis observations and design decisions
+├── outputs/                        # Generated at runtime
+│   ├── analysis/                   #   EDA plots and reports
+│   ├── prepared_data/              #   Train/val/test splits
+│   ├── training/                   #   Model weights and logs
+│   └── evaluation/                 #   Evaluation metrics and plots
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -45,15 +54,15 @@ The dataset is **not included in this repository**. Download the labelled image 
 
 ```
 data/
-├── compost/          (~150 images)
-├── goat-sheep-pen/   (~150 images)
+├── compost/            (~150 images)
+├── goat-sheep-pen/     (~150 images)
 ├── guinea-pig-shelter/ (~16 images)
-├── liquid-organic/   (~150 images)
-├── organic/          (~150 images)
-├── pigsty/           (~150 images)
-├── poultry-house/    (~150 images)
-├── tippytap/         (~150 images)
-└── vsla/             (~150 images)
+├── liquid-organic/     (~150 images)
+├── organic/            (~150 images)
+├── pigsty/             (~150 images)
+├── poultry-house/      (~150 images)
+├── tippytap/           (~150 images)
+└── vsla/               (~150 images)
 ```
 
 ### 1. Install Dependencies
@@ -170,33 +179,46 @@ python src/task2_model_evaluation.py \
 
 ## Task 3: API & Deployment
 
+The API is structured as a proper Python package (`src/app/`) with separated concerns:
+
+| Module | Responsibility |
+|--------|---------------|
+| `main.py` | App factory, lifespan, middleware, route registration |
+| `config.py` | Settings from environment variables, category metadata |
+| `schemas.py` | Pydantic models for all request/response types |
+| `classifier.py` | Model loading and inference (decoupled from HTTP) |
+| `routers/health.py` | Health, readiness, and category endpoints |
+| `routers/predict.py` | Single and batch prediction endpoints |
+| `templates/index.html` | Interactive web UI for testing |
+
 ### Step 5 — Run the API Locally
 
 ```bash
-# Start the FastAPI server
-uvicorn src.task3_api:app --host 0.0.0.0 --port 8000
-
-# Or run directly
-python src/task3_api.py
-```
-
-Set the model path via environment variable:
-```bash
+# Set the model path
 export MODEL_PATH=outputs/training/<run_name>/weights/best.pt
-uvicorn src.task3_api:app --host 0.0.0.0 --port 8000
+
+# Start the server
+uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+Then open your browser:
+- **http://localhost:8000** — Interactive test page (drag & drop images)
+- **http://localhost:8000/docs** — Swagger API documentation
+- **http://localhost:8000/redoc** — ReDoc API documentation
 
 ### API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/` | API info and available endpoints |
+| `GET` | `/` | Interactive HTML test page |
+| `GET` | `/api` | Service metadata and endpoint list |
 | `GET` | `/health` | Liveness probe (always 200 if running) |
 | `GET` | `/ready` | Readiness probe (200 only when model loaded) |
 | `GET` | `/categories` | List all 9 categories with descriptions |
 | `POST` | `/predict` | Classify a single uploaded image |
 | `POST` | `/predict/batch` | Classify up to 16 images in one request |
 | `GET` | `/docs` | Interactive Swagger documentation |
+| `GET` | `/redoc` | ReDoc documentation |
 
 ### Example: Classify an Image
 
@@ -256,7 +278,9 @@ docker run -p 8000:8000 rtv-classifier
 docker compose up --build
 ```
 
-The API will be available at `http://localhost:8000`. Swagger docs at `http://localhost:8000/docs`.
+Then visit:
+- **http://localhost:8000** — Interactive test page
+- **http://localhost:8000/docs** — Swagger docs
 
 ### Configuration via Environment Variables
 
@@ -308,7 +332,7 @@ python src/task2_model_evaluation.py \
 
 # 6. Deploy
 export MODEL_PATH=outputs/training/<run_name>/weights/best.pt
-uvicorn src.task3_api:app --host 0.0.0.0 --port 8000
+uvicorn src.app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ---
@@ -323,4 +347,6 @@ uvicorn src.task3_api:app --host 0.0.0.0 --port 8000
 | **Offline + online augmentation** | Offline for class balancing (visible, auditable); online for epoch-level variety |
 | **Macro F1** as primary metric | Weights every class equally — exposes minority-class weakness that accuracy hides |
 | **FastAPI** (not Flask/Gradio) | Async support, automatic OpenAPI docs, Pydantic validation, production-grade |
+| **Modular app structure** | Separated config / schemas / classifier / routers — testable, maintainable, standard practice |
+| **HTML test page at /** | Allows non-technical users to test the classifier without curl or Swagger |
 | **Docker** with health checks | Production-ready containerisation with orchestration support |
